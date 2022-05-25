@@ -91,8 +91,10 @@ struct proc {
   struct proc *parent;         // Parent process
   void *chan;                  // If non-zero, sleeping on chan
   int killed;                  // If non-zero, have been killed
+  int paused;
   int xstate;                  // Exit status to be returned to parent's wait
   int pid;                     // Process ID
+  sigset_tt signals;             // The bit-map that indicates signals need to be dealt with
 
   // these are private to the process, so p->lock need not be held.         
   uint64 kstack;               // Virtual address of kernel stack
@@ -100,11 +102,12 @@ struct proc {
   pagetable_t pagetable;       // User page table
   int ticks_left;              // ticks left until the next call
   int interval;                // The time interval between two alarms
+  int wakeup;
   int re_entrant;              // Prevent re-entrant calls to the handler----
   //if a handler hasn't returned yet, the kernel shouldn't call it again.
-  handler_type handler;        // The handler function called periodically
+  handler_type handlers[MAXSIG];// The handler functions for at most MAXSIG(i.e.32) signals
   struct trapframe *trapframe; // data page for trampoline.S
-  struct trapframe *alarm_trapframe; //The saved trapframe for alarm handler to resume original execution flow
+  struct trapframe *saved_trapframe; //The saved trapframe for handlers to resume original execution flow
   struct context context;      // swtch() here to run process
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory

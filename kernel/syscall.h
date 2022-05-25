@@ -22,3 +22,8 @@
 #define SYS_close  21
 #define SYS_sigalarm 22
 #define SYS_sigreturn 23
+#define SYS_sendsig   24
+#define SYS_bindsig   25
+#define SYS_semaP     26
+#define SYS_semaV     27
+#define SYS_getsema   28

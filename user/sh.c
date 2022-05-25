@@ -164,6 +164,28 @@ main(void)
         fprintf(2, "cannot cd %s\n", buf+3);
       continue;
     }
+    if(buf[0]=='s'&&buf[1]=='s'&&buf[2]==' '){
+      char buf_pid[16];
+      char buf_signo[16];
+      int i=0;
+      while(buf[i+3]!=' '){
+        buf_pid[i]=buf[i+3];
+        i++;
+      }
+      buf_pid[i]='\0';
+      int j=i+4;
+      i=0;
+      while(buf[i+j]!=0){
+        buf_signo[i]=buf[i+j];
+        i++;
+      }
+      buf_signo[i]='\0';
+
+      int pid =atoi(buf_pid);
+      int signo = atoi(buf_signo);
+      sendsig(pid,signo);
+      continue;
+    }
     if(fork1() == 0)
       runcmd(parsecmd(buf));
     wait(0);

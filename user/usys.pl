@@ -38,3 +38,8 @@ entry("sleep");
 entry("uptime");
 entry("sigalarm");
 entry("sigreturn");
+entry("sendsig");
+entry("bindsig");
+entry("semaP");
+entry("semaV");
+entry("getsema");

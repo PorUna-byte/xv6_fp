@@ -25,6 +25,12 @@ int sleep(int);
 int uptime(void);
 int sigalarm(int ticks, void (*handler)());
 int sigreturn(void);
+int sendsig(int pid,int signo);
+int bindsig(void (*handler)(),int signo);
+void semaP(int id);
+void semaV(int id);
+int getsema(int capa);
+
 // ulib.c
 int stat(const char*, struct stat*);
 char* strcpy(char*, const char*);

@@ -1,0 +1,12 @@
+#define SIG_USR0 0
+#define SIG_USR1 1
+#define SIG_USR2 2
+#define SIG_USR3 3
+#define SIG_USR4 4
+#define SIG_USR5 5
+#define SIG_USR6 6
+#define SIG_USR7 7
+#define SIG_USR8 8
+#define SIG_USR9 9
+#define SIG_PAUSE 15
+#define SIG_ALARM 23

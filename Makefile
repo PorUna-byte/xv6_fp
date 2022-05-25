@@ -36,7 +36,9 @@ OBJS = \
   $K/kernelvec.o \
   $K/plic.o \
   $K/virtio_disk.o \
-	$K/alarm.o 
+	$K/signal.o  \
+	$K/semaphore.o \
+	
 ifeq ($(LAB),pgtbl)
 OBJS += \
 	$K/vmcopyin.o
@@ -176,8 +178,7 @@ UPROGS=\
 	$U/_wc\
 	$U/_zombie\
   $U/_alarmtest\
-
-
+	$U/_signaltest\
 
 ifeq ($(LAB),$(filter $(LAB), pgtbl lock))
 UPROGS += \
@@ -288,6 +289,8 @@ qemu-gdb: $K/kernel .gdbinit fs.img
 	@echo "*** Now run 'gdb' in another window." 1>&2
 	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB)
 
+test-gdb: riscv64-unknown-elf-gdb $K/kernel
+
 ifeq ($(LAB),net)
 # try to generate a unique port for the echo server
 SERVERPORT = $(shell expr `id -u` % 5000 + 25099)
@@ -299,91 +302,4 @@ ping:
 	python3 ping.py $(FWDPORT)
 endif
 
-##
-##  FOR testing lab grading script
-##
 
-ifneq ($(V),@)
-GRADEFLAGS += -v
-endif
-
-print-gdbport:
-	@echo $(GDBPORT)
-
-grade:
-	@echo $(MAKE) clean
-	@$(MAKE) clean || \
-          (echo "'make clean' failed.  HINT: Do you have another running instance of xv6?" && exit 1)
-	./grade-lab-$(LAB) $(GRADEFLAGS)
-
-##
-## FOR web handin
-##
-
-
-WEBSUB := https://6828.scripts.mit.edu/2020/handin.py
-
-handin: tarball-pref myapi.key
-	@SUF=$(LAB); \
-	curl -f -F file=@lab-$$SUF-handin.tar.gz -F key=\<myapi.key $(WEBSUB)/upload \
-	    > /dev/null || { \
-		echo ; \
-		echo Submit seems to have failed.; \
-		echo Please go to $(WEBSUB)/ and upload the tarball manually.; }
-
-handin-check:
-	@if ! test -d .git; then \
-		echo No .git directory, is this a git repository?; \
-		false; \
-	fi
-	@if test "$$(git symbolic-ref HEAD)" != refs/heads/$(LAB); then \
-		git branch; \
-		read -p "You are not on the $(LAB) branch.  Hand-in the current branch? [y/N] " r; \
-		test "$$r" = y; \
-	fi
-	@if ! git diff-files --quiet || ! git diff-index --quiet --cached HEAD; then \
-		git status -s; \
-		echo; \
-		echo "You have uncomitted changes.  Please commit or stash them."; \
-		false; \
-	fi
-	@if test -n "`git status -s`"; then \
-		git status -s; \
-		read -p "Untracked files will not be handed in.  Continue? [y/N] " r; \
-		test "$$r" = y; \
-	fi
-
-UPSTREAM := $(shell git remote -v | grep -m 1 "xv6-labs-2020" | awk '{split($$0,a," "); print a[1]}')
-
-tarball: handin-check
-	git archive --format=tar HEAD | gzip > lab-$(LAB)-handin.tar.gz
-
-tarball-pref: handin-check
-	@SUF=$(LAB); \
-	git archive --format=tar HEAD > lab-$$SUF-handin.tar; \
-	git diff $(UPSTREAM)/$(LAB) > /tmp/lab-$$SUF-diff.patch; \
-	tar -rf lab-$$SUF-handin.tar /tmp/lab-$$SUF-diff.patch; \
-	gzip -c lab-$$SUF-handin.tar > lab-$$SUF-handin.tar.gz; \
-	rm lab-$$SUF-handin.tar; \
-	rm /tmp/lab-$$SUF-diff.patch; \
-
-myapi.key:
-	@echo Get an API key for yourself by visiting $(WEBSUB)/
-	@read -p "Please enter your API key: " k; \
-	if test `echo "$$k" |tr -d '\n' |wc -c` = 32 ; then \
-		TF=`mktemp -t tmp.XXXXXX`; \
-		if test "x$$TF" != "x" ; then \
-			echo "$$k" |tr -d '\n' > $$TF; \
-			mv -f $$TF $@; \
-		else \
-			echo mktemp failed; \
-			false; \
-		fi; \
-	else \
-		echo Bad API key: $$k; \
-		echo An API key should be 32 characters long.; \
-		false; \
-	fi;
-
-
-.PHONY: handin tarball tarball-pref clean grade handin-check

@@ -5,7 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
-
+#include "signal.h"
 struct spinlock tickslock;
 uint ticks;
 
@@ -75,11 +75,26 @@ usertrap(void)
 
   if(p->killed)
     exit(-1);
+  if(p->paused)
+    pause();  
   if(which_dev==2&&p->interval!=0&&--p->ticks_left<=0&&!p->re_entrant){
     p->ticks_left=p->interval;
-    *p->alarm_trapframe=*p->trapframe;
+    *p->saved_trapframe=*p->trapframe;
     p->re_entrant=1;
-    p->trapframe->epc=(uint64)p->handler;
+    p->trapframe->epc=(uint64)p->handlers[SIG_ALARM];
+  }
+  //detect current process signals
+  if(p->signals!=0){
+    int signo=1;
+    int idx=0;
+    while(!(p->signals & signo)){
+      signo=signo<<1;
+      idx++;
+    }
+   *p->saved_trapframe=*p->trapframe;
+    p->re_entrant=1;
+    p->trapframe->epc=(uint64)p->handlers[idx];
+    p->signals &= ~(signo); //clear the signal indicates we have already processed this signal
   }
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2)

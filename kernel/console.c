@@ -138,7 +138,6 @@ void
 consoleintr(int c)
 {
   acquire(&cons.lock);
-
   switch(c){
   case C('P'):  // Print process list.
     procdump();
@@ -150,6 +149,13 @@ consoleintr(int c)
       consputc(BACKSPACE);
     }
     break;
+  case C('C'):
+    suicide();
+    break;
+  case C('Z'):
+    if(myproc())
+      myproc()->paused=1;
+    break;  
   case C('H'): // Backspace
   case '\x7f':
     if(cons.e != cons.w){

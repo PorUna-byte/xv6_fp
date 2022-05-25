@@ -48,7 +48,7 @@ release(struct spinlock *lk)
 {
   if(!holding(lk))
     panic("release");
-
+    
   lk->cpu = 0;
 
   // Tell the C compiler and the CPU to not move loads or stores

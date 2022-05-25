@@ -106,7 +106,11 @@ extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
 extern uint64 sys_sigalarm(void);
 extern uint64 sys_sigreturn(void);
-
+extern uint64 sys_sendsig(void);
+extern uint64 sys_bindsig(void);
+extern uint64 sys_semaP(void);
+extern uint64 sys_semaV(void);
+extern uint64 sys_getsema(void);
 static uint64 (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
 [SYS_exit]    sys_exit,
@@ -131,6 +135,11 @@ static uint64 (*syscalls[])(void) = {
 [SYS_close]   sys_close,
 [SYS_sigalarm] sys_sigalarm,
 [SYS_sigreturn] sys_sigreturn,
+[SYS_sendsig]   sys_sendsig,
+[SYS_bindsig]   sys_bindsig, 
+[SYS_semaP]     sys_semaP,
+[SYS_semaV]     sys_semaV,
+[SYS_getsema]   sys_getsema,
 };
 
 void

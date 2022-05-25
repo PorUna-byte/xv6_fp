@@ -14,7 +14,7 @@ struct proc *initproc;
 
 int nextpid = 1;
 struct spinlock pid_lock;
-
+uint64 pause_chan=10086;
 extern void forkret(void);
 static void wakeup1(struct proc *chan);
 static void freeproc(struct proc *p);
@@ -112,8 +112,8 @@ found:
     release(&p->lock);
     return 0;
   }
-  // Allocate a alarm_trapframe page.
-  if((p->alarm_trapframe = (struct trapframe *)kalloc()) == 0){
+  // Allocate a saved_trapframe page.
+  if((p->saved_trapframe = (struct trapframe *)kalloc()) == 0){
     release(&p->lock);
     return 0;
   }
@@ -124,10 +124,12 @@ found:
     release(&p->lock);
     return 0;
   }
+  p->signals=0;
   p->interval=0;
-  p->handler=(handler_type)0;
+  memset(p->handlers,0,sizeof(p->handlers));
   p->ticks_left=0;
   p->re_entrant=0;
+  p->wakeup=0;
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
@@ -146,9 +148,9 @@ freeproc(struct proc *p)
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
-  if(p->alarm_trapframe)
-    kfree((void*)p->alarm_trapframe);
-  p->alarm_trapframe = 0;
+  if(p->saved_trapframe)
+    kfree((void*)p->saved_trapframe);
+  p->saved_trapframe = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;
@@ -161,9 +163,11 @@ freeproc(struct proc *p)
   p->xstate = 0;
   p->state = UNUSED;
   p->interval=0;
-  p->handler=(handler_type)0;
+  p->signals=0;
+  memset(p->handlers,0,sizeof(p->handlers));
   p->ticks_left=0;
   p->re_entrant=0;
+  p->wakeup=0;
 }
 
 // Create a user page table for a given process,
@@ -457,6 +461,12 @@ wait(uint64 addr)
     
     // Wait for a child to exit.
     sleep(p, &p->lock);  //DOC: wait-sleep
+    if(p->wakeup)
+    {
+      release(&p->lock);
+      p->wakeup=0;
+      return 0;
+    }
   }
 }
 
@@ -472,14 +482,24 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
-  
   c->proc = 0;
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
     
     int found = 0;
+    //check signals for each process
+    for(p = proc; p < &proc[NPROC]; p++){
+      acquire(&p->lock);
+      if(p->signals&&p->state==SLEEPING){
+        wakeup1(p);
+        p->wakeup=1;
+      }
+      release(&p->lock);  
+    }
+    
     for(p = proc; p < &proc[NPROC]; p++) {
+
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
         // Switch to chosen process.  It is the process's job
@@ -487,8 +507,9 @@ scheduler(void)
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
+        // if(strncmp(p->name,"signaltest",10)==0)
+        //   printf("switch to signaltest\n");
         swtch(&c->context, &p->context);
-
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
@@ -601,6 +622,40 @@ sleep(void *chan, struct spinlock *lk)
   }
 }
 
+void pause()
+{
+  struct proc *p = myproc();
+  if(p){
+    acquire(&p->lock);
+    struct proc *original_parent = p->parent;
+    release(&p->lock);
+
+    // we need the parent's lock in order to wake it up from wait().
+    // the parent-then-child rule says we have to lock it first.
+    acquire(&original_parent->lock);
+
+    acquire(&p->lock);
+    // let initproc recycle current process
+    // because sh has skipped the wait method
+    p->parent=initproc; 
+    // Parent might be sleeping in wait().
+    wakeup1(original_parent);
+
+    p->chan=p;
+    p->state = SLEEPING;
+    original_parent->wakeup=1;
+
+    release(&original_parent->lock);
+
+    // Jump into the scheduler.
+    sched();
+    // Tidy up.
+    p->paused = 0;
+    p->chan = 0;
+    }
+    return ;
+}
+
 // Wake up all processes sleeping on chan.
 // Must be called without any p->lock.
 void
@@ -609,11 +664,13 @@ wakeup(void *chan)
   struct proc *p;
 
   for(p = proc; p < &proc[NPROC]; p++) {
-    acquire(&p->lock);
+    if(!holding(&p->lock))
+      acquire(&p->lock);
     if(p->state == SLEEPING && p->chan == chan) {
       p->state = RUNNABLE;
     }
-    release(&p->lock);
+    if(holding(&p->lock))
+      release(&p->lock);
   }
 }
 
@@ -651,6 +708,14 @@ kill(int pid)
     release(&p->lock);
   }
   return -1;
+}
+
+void 
+suicide()
+{
+  struct proc *p=myproc();
+  if(p)
+    kill(p->pid);
 }
 
 // Copy to either a user address, or kernel address,
@@ -711,3 +776,4 @@ procdump(void)
     printf("\n");
   }
 }
+
